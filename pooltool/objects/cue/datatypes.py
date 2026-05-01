@@ -195,7 +195,7 @@ class Cue:
     phi: float = field(default=0.0)
     theta: float = field(default=0.0)
     a: float = field(default=0.0)
-    b: float = field(default=0.25)
+    b: float = field(default=0.0)
     cue_ball_id: str = field(default="cue")
     specs: CueSpecs = field(factory=CueSpecs.default)
     model_name: str | None = field(default=None)

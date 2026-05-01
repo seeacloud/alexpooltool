@@ -13,9 +13,6 @@ from pooltool.objects.datatypes import Render
 from pooltool.ptmath.utils import tip_center_offset, tip_contact_offset
 
 
-CUE_VISUAL_LENGTH_SCALE = 0.25
-
-
 class CueRender(Render):
     def __init__(self, cue: Cue):
         Render.__init__(self)
@@ -64,7 +61,6 @@ class CueRender(Render):
         path = utils.panda_path(model_dir / "cue" / name / "cue.glb")
         cue_stick_model = Global.loader.loadModel(path)
         cue_stick_model.setName("cue_stick_model")
-        cue_stick_model.setScale(CUE_VISUAL_LENGTH_SCALE, 1, 1)
 
         cue_stick = Global.render.find("scene").find("table").attachNewNode("cue_stick")
         cue_stick_model.reparentTo(cue_stick)
@@ -100,8 +96,7 @@ class CueRender(Render):
         bounds = self.get_node("cue_stick").get_tight_bounds()
 
         x = 0
-        # The collision segment is parented to the scaled model, so use model-local X.
-        X = (bounds[1][0] - bounds[0][0]) / CUE_VISUAL_LENGTH_SCALE
+        X = bounds[1][0] - bounds[0][0]
 
         cnode = CollisionNode("cue_cseg")
         cnode.set_into_collide_mask(0)

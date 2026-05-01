@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 from collections import deque
 
 import numpy as np
-from direct.gui.OnscreenImage import OnscreenImage
 from direct.gui.DirectGui import DirectButton
+from direct.gui.OnscreenImage import OnscreenImage
 from direct.interval.LerpInterval import LerpFunc
 from panda3d.core import CardMaker, NodePath, TextNode, TransparencyAttrib
 
@@ -18,8 +18,8 @@ from pooltool.ani.constants import (
     min_stroke_speed,
     model_dir,
 )
-from pooltool.ani.globals import Global
 from pooltool.ani.fonts import load_font
+from pooltool.ani.globals import Global
 from pooltool.objects.ball.datatypes import Ball, BallParams
 from pooltool.objects.cue.datatypes import Cue, CueSpecs
 from pooltool.ptmath.utils import tip_center_offset
@@ -37,6 +37,9 @@ class HUDElement(StrEnum):
     power = auto()
     player_stats = auto()
     ball_in_hand = auto()
+    target_ball = auto()
+    other_balls_button = auto()
+    hit_button = auto()
     settings_button = auto()
 
 
@@ -57,6 +60,9 @@ class HUD:
             HUDElement.power: Power(),
             HUDElement.player_stats: PlayerStats(),
             HUDElement.ball_in_hand: BallInHand(),
+            HUDElement.target_ball: TargetBall(),
+            HUDElement.other_balls_button: OtherBallsButton(),
+            HUDElement.hit_button: HitButton(),
             HUDElement.settings_button: SettingsButton(),
         }
 
@@ -106,11 +112,37 @@ class HUD:
         self.elements[HUDElement.jack].set(cue.theta)
         self.elements[HUDElement.power].set(cue.V0)
 
+    def update_target_ball(self, ball_id: str | None):
+        if not self.initialized:
+            return
+
+        self.elements[HUDElement.target_ball].set(ball_id)
+
+    def update_other_balls_button(self, hidden: bool):
+        if not self.initialized:
+            return
+
+        self.elements[HUDElement.other_balls_button].set_hidden(hidden)
+
+    def show_aim_controls(self):
+        if not self.initialized:
+            return
+
+        self.elements[HUDElement.target_ball].show()
+        self.elements[HUDElement.other_balls_button].show()
+        self.elements[HUDElement.hit_button].show()
+
+    def hide_aim_controls(self):
+        if not self.initialized:
+            return
+
+        self.elements[HUDElement.target_ball].hide()
+        self.elements[HUDElement.other_balls_button].hide()
+        self.elements[HUDElement.hit_button].hide()
+
     def update_hud(self, task):
         if Global.game is not None:
             self.update_log_window()
-            self.update_player_stats()
-            self.update_ball_in_hand()
 
         if (help_hint := self.elements[HUDElement.help_text].help_hint).is_hidden():
             help_hint.show()
@@ -210,12 +242,14 @@ class Help(BaseHUDElement):
         add("Leave - [escape]")
 
         add("Camera controls", True)
-        add("Rotate - [mouse]")
+        add("Rotate view - [left-click + drag]")
         add("Pan - [hold v + mouse]")
-        add("Zoom - [hold left-click + mouse]")
+        add("Zoom - [mouse wheel]")
 
         add("Aim controls", True)
         add("Enter aim mode - [a]")
+        add("Set target point - [drag target ball]")
+        add("Aim cue - [drag cue]")
         add("Apply english - [hold e + mouse]")
         add("Elevate cue - [hold b + mouse]")
         add("Adjust power - [hold x + mouse]")
@@ -223,6 +257,7 @@ class Help(BaseHUDElement):
         add("Raise head - [hold t + mouse]")
 
         add("Shot controls", True)
+        add("Hit - [button or space]")
         add("Stroke - [hold s] (move mouse down then up)")
         add("Take next shot - [a]")
         add("Undo shot - [z]")
@@ -745,6 +780,121 @@ class SettingsButton(BaseHUDElement):
             pos=(1.32, 0, 0.9),
             parent=Global.aspect2d,
             command=lambda: Global.base.messenger.send("open-settings"),
+        )
+
+    def show(self):
+        self.button.show()
+
+    def hide(self):
+        self.button.hide()
+
+    def destroy(self):
+        if hasattr(self, "button"):
+            self.button.removeNode()
+            del self.button
+
+        if not self.dummy_right.isEmpty():
+            self.dummy_right.removeNode()
+
+
+class TargetBall(BaseHUDElement):
+    def __init__(self):
+        BaseHUDElement.__init__(self)
+
+    def init(self):
+        self.destroy()
+        self.text = autils.CustomOnscreenText(
+            text="Select target ball",
+            pos=(1.55, 0.54),
+            scale=0.04,
+            fg=(1.0, 0.86, 0.24, 1),
+            align=TextNode.ARight,
+            mayChange=True,
+            parent=Global.aspect2d,
+        )
+
+    def set(self, ball_id: str | None):
+        if ball_id is None:
+            self.text.setText("Select target ball")
+            self.text.setFg((1.0, 0.86, 0.24, 1))
+        else:
+            self.text.setText(f"Target: {ball_id}")
+            self.text.setFg((0.5, 1.0, 0.5, 1))
+
+    def show(self):
+        self.text.show()
+
+    def hide(self):
+        self.text.hide()
+
+    def destroy(self):
+        if hasattr(self, "text"):
+            self.text.removeNode()
+            del self.text
+
+        if not self.dummy_right.isEmpty():
+            self.dummy_right.removeNode()
+
+
+class HitButton(BaseHUDElement):
+    def __init__(self):
+        BaseHUDElement.__init__(self)
+
+    def init(self):
+        self.destroy()
+        self.button = DirectButton(
+            text="Hit",
+            text_font=load_font("LABTSECS"),
+            text_scale=0.045,
+            text_fg=(1, 1, 1, 1),
+            frameColor=(0.2, 0.52, 0.28, 0.75),
+            frameSize=(-0.22, 0.22, -0.052, 0.052),
+            relief=1,
+            pos=(1.32, 0, 0.78),
+            parent=Global.aspect2d,
+            command=lambda: Global.base.messenger.send("exec-shot"),
+        )
+
+    def show(self):
+        self.button.show()
+
+    def hide(self):
+        self.button.hide()
+
+    def destroy(self):
+        if hasattr(self, "button"):
+            self.button.removeNode()
+            del self.button
+
+        if not self.dummy_right.isEmpty():
+            self.dummy_right.removeNode()
+
+
+class OtherBallsButton(BaseHUDElement):
+    def __init__(self):
+        BaseHUDElement.__init__(self)
+
+    def init(self):
+        self.destroy()
+        self.button = DirectButton(
+            text="Hide Others",
+            text_font=load_font("LABTSECS"),
+            text_scale=0.036,
+            text_fg=(1, 1, 1, 1),
+            frameColor=(0.14, 0.33, 0.52, 0.75),
+            frameSize=(-0.22, 0.22, -0.045, 0.045),
+            relief=1,
+            pos=(1.32, 0, 0.66),
+            parent=Global.aspect2d,
+            command=lambda: Global.base.messenger.send("toggle-other-balls"),
+        )
+
+    def set_hidden(self, hidden: bool):
+        self.button["text"] = "Show Others" if hidden else "Hide Others"
+        self.button["frameColor"] = (
+            (0.52, 0.26, 0.14, 0.75)
+            if hidden
+            else (0.14, 0.33, 0.52, 0.75)
         )
 
     def show(self):

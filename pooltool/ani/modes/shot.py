@@ -11,6 +11,7 @@ from pooltool.ani.hud import hud
 from pooltool.ani.modes.datatypes import BaseMode, Mode
 from pooltool.ani.mouse import MouseMode, mouse
 from pooltool.ani.scene import PlaybackMode, visual
+from pooltool.ani.shot_filter import shot_filter
 from pooltool.objects.ball.datatypes import BallHistory
 from pooltool.system.datatypes import multisystem
 
@@ -129,6 +130,8 @@ class ShotMode(BaseMode):
             new_system_exists = multisystem[-1].simulated
 
             if new_system_exists:
+                shot_filter.restore_system(multisystem[-1])
+
                 # The shot is processed and advanced now, because (1) the shot animation
                 # has ended or the user has requested to take the next shot and (2) it
                 # hasn't been processed yet, since if it had, the latest system would be
@@ -187,6 +190,11 @@ class ShotMode(BaseMode):
                 ball_render.set_render_state_as_object_state()
                 ball.history = BallHistory()
                 ball.history_cts = BallHistory()
+
+            restored = shot_filter.restore_system(multisystem.active)
+            for ball_id in restored:
+                if ball_id in visual.balls:
+                    visual.balls[ball_id].set_render_state_as_object_state()
 
         tasks.remove("shot_view_task")
         tasks.remove("shot_animation_task")

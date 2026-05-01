@@ -120,8 +120,21 @@ class BallRender(Render):
         )
         if settings.graphics.debug:
             collision_node.show()
+        else:
+            collision_node.hide()
 
         self.nodes[f"ball_csphere_{self._ball.id}"] = collision_node
+
+    def show_nodes(self, ignore=set()):
+        if not settings.graphics.debug:
+            ignore = set(ignore)
+            ignore.update(
+                node_name
+                for node_name in self.nodes
+                if node_name.startswith("ball_csphere_")
+            )
+
+        super().show_nodes(ignore=ignore)
 
     def init_shadow(self):
         N = 20

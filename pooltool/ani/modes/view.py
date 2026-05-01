@@ -24,6 +24,8 @@ from pooltool.config import settings
 from pooltool.ptmath.utils import norm2d, tip_contact_offset
 from pooltool.system.datatypes import multisystem
 
+MOUSE_WHEEL_ZOOM = 0.08
+
 
 class ViewMode(BaseMode):
     name = Mode.view
@@ -32,9 +34,9 @@ class ViewMode(BaseMode):
         Action.call_shot: False,
         Action.fine_control: False,
         Action.move: False,
+        Action.camera_drag: False,
         Action.stroke: False,
         Action.quit: False,
-        Action.zoom: False,
         Action.cam_save: False,
         Action.cam_load: False,
         Action.show_help: False,
@@ -47,6 +49,8 @@ class ViewMode(BaseMode):
         Action.introspect: False,
         Action.hide_cue: False,
         Action.exec_shot: False,
+        Action.scroll_up: False,
+        Action.scroll_down: False,
     }
 
     def __init__(self):
@@ -59,7 +63,7 @@ class ViewMode(BaseMode):
         self.magnet_threshold = 0.2
 
     def enter(self, move_active=False, load_prev_cam=False):
-        mouse.mode(MouseMode.RELATIVE)
+        mouse.mode(MouseMode.ABSOLUTE)
 
         if multisystem.active is not None:
             visual.cue.hide_nodes(ignore=("cue_cseg",))
@@ -71,8 +75,8 @@ class ViewMode(BaseMode):
             self.keymap[Action.move] = True
 
         self.register_keymap_event("escape", Action.quit, True)
-        self.register_keymap_event("mouse1", Action.zoom, True)
-        self.register_keymap_event("mouse1-up", Action.zoom, False)
+        self.register_keymap_event("mouse1", Action.camera_drag, True)
+        self.register_keymap_event("mouse1-up", Action.camera_drag, False)
         self.register_keymap_event("a", Action.aim, True)
         self.register_keymap_event("s", Action.stroke, True)
         self.register_keymap_event("v", Action.move, True)
@@ -94,6 +98,8 @@ class ViewMode(BaseMode):
         self.register_keymap_event("p-up", Action.prev_shot, True)
         self.register_keymap_event("space", Action.exec_shot, True)
         self.register_keymap_event("space-up", Action.exec_shot, False)
+        self.register_keymap_event("wheel_up", Action.scroll_up, True)
+        self.register_keymap_event("wheel_down", Action.scroll_down, True)
 
         tasks.add(self.view_task, "view_task")
         tasks.add(self.shared_task, "shared_task")
@@ -117,8 +123,10 @@ class ViewMode(BaseMode):
             Global.mode_mgr.change_mode(Mode.call_shot)
         elif self.keymap[Action.ball_in_hand]:
             Global.mode_mgr.change_mode(Mode.ball_in_hand)
-        elif self.keymap[Action.zoom]:
-            cam.zoom_via_mouse()
+        elif self.keymap[Action.scroll_up] or self.keymap[Action.scroll_down]:
+            self.zoom_from_wheel()
+        elif self.keymap[Action.camera_drag]:
+            cam.rotate_via_mouse(fine_control=self.keymap[Action.fine_control])
         elif self.keymap[Action.move]:
             cam.move_fixation_via_mouse()
         elif self.keymap[Action.hide_cue]:
@@ -153,9 +161,18 @@ class ViewMode(BaseMode):
                 )
                 return task.done
         else:
-            cam.rotate_via_mouse()
+            mouse.track()
 
         return task.cont
+
+    def zoom_from_wheel(self):
+        if self.keymap[Action.scroll_up]:
+            cam.zoom(MOUSE_WHEEL_ZOOM)
+            self.keymap[Action.scroll_up] = False
+
+        if self.keymap[Action.scroll_down]:
+            cam.zoom(-MOUSE_WHEEL_ZOOM)
+            self.keymap[Action.scroll_down] = False
 
     def view_apply_power(self):
         visual.cue.show_nodes(ignore=("cue_cseg",))

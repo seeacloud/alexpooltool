@@ -17,6 +17,7 @@ from panda3d.core import (
 
 import pooltool.ani.tasks as tasks
 import pooltool.ani.utils as autils
+from pooltool.ani.action import Action
 from pooltool.ani.camera import CameraState, cam
 from pooltool.ani.collision import cue_avoid
 from pooltool.ani.constants import menu_text_scale
@@ -477,6 +478,7 @@ class Game(Interface):
 
         tasks.register_event("enter-game", self._enter_game)
         tasks.register_event("open-settings", self._open_settings)
+        tasks.register_event("exec-shot", self._exec_shot)
         tasks.register_event("f10", self._open_settings)
 
         Global.mode_mgr.update_event_baseline()
@@ -517,14 +519,20 @@ class Game(Interface):
         MenuRegistry.show_menu("game_setup")
         Global.mode_mgr.change_mode(Mode.menu)
 
+    def _exec_shot(self):
+        """Queue a shot from the HUD button when the active mode supports it."""
+        if Global.mode_mgr.mode not in {Mode.aim, Mode.view}:
+            return
+
+        keymap = Global.mode_mgr.get_keymap()
+        if Action.exec_shot in keymap:
+            keymap[Action.exec_shot] = True
+
     def _create_system(self):
         """Create the multisystem and game objects"""
         game_type = settings.gameplay.game_type
         game = get_ruleset(game_type, enforce_rules=settings.gameplay.enforce_rules)()
-        game.players = [
-            Player("Player 1"),
-            Player("Player 2"),
-        ]
+        game.players = [Player("Player")]
 
         table = Table.from_table_specs(prebuilt_specs(settings.gameplay.table_name))
         balls = get_rack(
